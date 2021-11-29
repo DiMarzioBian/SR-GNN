@@ -10,7 +10,7 @@ from tqdm import tqdm
 from model.metrics import *
 
 
-def train_epoch(model, data, opt, optimizer):
+def train_epoch(model, data, opt):
     """
     Flow for each epoch
     """
@@ -36,8 +36,8 @@ def train_epoch(model, data, opt, optimizer):
             loss = loss_batch
 
         loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
+        model.optimizer.step()
+        model.optimizer.zero_grad()
 
         miou_batch, pa_batch = get_metrics(y_score, y_gt, opt.num_label)
 

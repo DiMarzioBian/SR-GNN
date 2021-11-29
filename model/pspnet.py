@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.optim as optim
 
 from model.resnet import *
 from model.layers import PyramidPoolingModule
@@ -14,17 +15,6 @@ class Backbone(nn.Module):
         super(Backbone,  self).__init__()
         if backbone == 'resnet18':
             self.model = resnet18(pretrained=True, replace_stride_with_dilation=[0, 2, 4])
-        if backbone == 'resnet34':
-            self.model = resnet34(pretrained=True, replace_stride_with_dilation=[0, 2, 4])
-        if backbone == 'resnet50':
-            self.model = resnet50(pretrained=True, replace_stride_with_dilation=[0, 2, 4])
-        if backbone == 'resnet50':
-            self.model = resnet50(pretrained=True, replace_stride_with_dilation=[0, 2, 4])
-        if backbone == 'resnext50_32x4d':
-            self.model = resnext50_32x4d(pretrained=True, replace_stride_with_dilation=[0, 2, 4])
-        if backbone == 'wide_resnet50_2':
-            self.model = wide_resnet50_2(pretrained=True, replace_stride_with_dilation=[0, 2, 4])
-
 
     def forward(self, x):
         x, x_auxiliary = self.model(x)
@@ -61,6 +51,10 @@ class PSPNet(nn.Module):
 
         self.out_dim_resnet = opt.out_dim_resnet
         self.out_dim_resnet_auxiliary = opt.out_dim_resnet_auxiliary
+
+        self.optimizer = optim.AdamW(filter(lambda x: x.requires_grad, self.parameters()), lr=1e-3, weight_decay=1e-5)
+
+        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, int(opt.lr_patience), gamma=opt.gamma_steplr)
 
         # Override Resnet official code, add dilation at BasicBlock 3 and 4 according to paper
         self.backbone = Backbone(self.backbone)
