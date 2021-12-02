@@ -5,9 +5,7 @@ import torch.nn.functional as F
 
 
 def get_metrics(y_score, y_gt, num_label):
-    """
-    Compute mean IoU and per pixel accuracy.
-    """
+    """ Get Hit rate, Mrr and NDCG """
     y_pred = y_score.argmax(1)
     pa = y_pred.eq(y_gt).sum() / y_gt.numel()
 
