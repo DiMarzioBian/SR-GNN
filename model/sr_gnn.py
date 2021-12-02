@@ -48,25 +48,24 @@ class GNN(Module):
 class SR_GNN(Module):
     def __init__(self, opt):
         super(SR_GNN, self).__init__()
-        self.hidden_size = opt.hiddenSize
-        self.n_node = opt.n_node
-        self.batch_size = opt.batchSize
-        self.nonhybrid = opt.nonhybrid
-        self.embedding = nn.Embedding(self.n_node, self.hidden_size)
+        self.device = opt.device
+        self.hidden_size = opt.hidden_size
+        self.num_item = opt.num_item
+        self.batch_size = opt.batch_size
+        self.non_hybrid = opt.non_hybrid
+        self.embedding = nn.Embedding(self.num_item, self.hidden_size)
         self.gnn = GNN(self.hidden_size, step=opt.step)
         self.linear_one = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
         self.linear_two = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
         self.linear_three = nn.Linear(self.hidden_size, 1, bias=False)
         self.linear_transform = nn.Linear(self.hidden_size * 2, self.hidden_size, bias=True)
         self.loss_function = nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=opt.lr, weight_decay=opt.l2)
-        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=opt.lr_dc_step, gamma=opt.lr_dc)
         self.reset_parameters()
 
     def reset_parameters(self):
-        stdv = 1.0 / math.sqrt(self.hidden_size)
+        std_var = 1.0 / math.sqrt(self.hidden_size)
         for weight in self.parameters():
-            weight.data.uniform_(-stdv, stdv)
+            weight.data.uniform_(-std_var, std_var)
 
     def compute_scores(self, hidden, mask):
         ht = hidden[torch.arange(mask.shape[0]).long(), torch.sum(mask, 1) - 1]  # batch_size x latent_size
@@ -74,9 +73,9 @@ class SR_GNN(Module):
         q2 = self.linear_two(hidden)  # batch_size x seq_length x latent_size
         alpha = self.linear_three(torch.sigmoid(q1 + q2))
         a = torch.sum(alpha * hidden * mask.view(mask.shape[0], -1, 1).float(), 1)
-        if not self.nonhybrid:
+        if not self.non_hybrid:
             a = self.linear_transform(torch.cat([a, ht], 1))
-        b = self.embedding.weight[1:]  # n_nodes x latent_size
+        b = self.embedding.weight[1:]  # num_item x latent_size
         scores = torch.matmul(a, b.transpose(1, 0))
         return scores
 
@@ -85,31 +84,12 @@ class SR_GNN(Module):
         hidden = self.gnn(A, hidden)
         return hidden
 
-
-def trans_to_cuda(variable):
-    if torch.cuda.is_available():
-        return variable.cuda()
-    else:
-        return variable
-
-
-def trans_to_cpu(variable):
-    if torch.cuda.is_available():
-        return variable.cpu()
-    else:
-        return variable
-
-
-def forward(model, i, data):
-    alias_inputs, A, items, mask, targets = data.get_slice(i)
-    alias_inputs = trans_to_cuda(torch.Tensor(alias_inputs).long())
-    items = trans_to_cuda(torch.Tensor(items).long())
-    A = trans_to_cuda(torch.Tensor(A).float())
-    mask = trans_to_cuda(torch.Tensor(mask).long())
-    hidden = model(items, A)
-    get = lambda i: hidden[i][alias_inputs[i]]
-    seq_hidden = torch.stack([get(i) for i in torch.arange(len(alias_inputs)).long()])
-    return targets, model.compute_scores(seq_hidden, mask)
+    def predict(self, i, data):
+        alias_inputs, A, items, mask, targets = map(lambda x: x.to(self.device), data.get_slice(i))
+        hidden = self.forward(items, A)
+        get = lambda i: hidden[i][alias_inputs[i]]
+        seq_hidden = torch.stack([get(i) for i in torch.arange(len(alias_inputs)).long()])
+        return targets, self.compute_scores(seq_hidden, mask)
 
 
 def train_test(model, train_data, test_data):
@@ -120,8 +100,7 @@ def train_test(model, train_data, test_data):
     slices = train_data.generate_batch(model.batch_size)
     for i, j in zip(slices, np.arange(len(slices))):
         model.optimizer.zero_grad()
-        targets, scores = forward(model, i, train_data)
-        targets = trans_to_cuda(torch.Tensor(targets).long())
+        targets, scores = model.predict(model, i, train_data)
         loss = model.loss_function(scores, targets - 1)
         loss.backward()
         model.optimizer.step()
@@ -135,9 +114,9 @@ def train_test(model, train_data, test_data):
     hit, mrr = [], []
     slices = test_data.generate_batch(model.batch_size)
     for i in slices:
-        targets, scores = forward(model, i, test_data)
+        targets, scores = model.predict(model, i, test_data)
         sub_scores = scores.topk(20)[1]
-        sub_scores = trans_to_cpu(sub_scores).detach().numpy()
+        sub_scores = sub_scores.cpu().detach().numpy()
         for score, target, mask in zip(sub_scores, targets, test_data.mask):
             hit.append(np.isin(target - 1, score))
             if len(np.where(score == target - 1)[0]) == 0:

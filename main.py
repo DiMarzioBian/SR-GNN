@@ -17,9 +17,8 @@ def main():
     parser.add_argument('--note', type=str, default='')
 
     # Model settings
-    parser.add_argument('--shrink_image', type=list, default=[400, 600])
-    parser.add_argument('--backbone_freeze', type=bool, default=True)
-    parser.add_argument('--recalculate_mean_std', type=bool, default=False)
+    parser.add_argument('--hidden_size', type=int, default=100, help='hidden state size')
+    parser.add_argument('--non_hybrid', action='store_true', help='only use the global preference to predict')
     parser.add_argument('--save_dict', type=bool, default=True)
 
     parser.add_argument('--lr', type=float, default=1e-4)
@@ -31,9 +30,9 @@ def main():
     parser.add_argument('--batch_size', type=int, default=8)
 
     # Settings need to be tuned
-    parser.add_argument('--backbone', type=str, default='resnet18')  # Num of cross validation folds
-    parser.add_argument('--data', default='assd')
-    parser.add_argument('--alpha_loss', type=float, default=0.2)
+    parser.add_argument('--dataset', default='sample')
+    parser.add_argument('--validation', default=False)
+    parser.add_argument('--k_metric', type=int, default=20)
 
     # Augmentation
     parser.add_argument('--enable_hvflip', type=float, default=0.5)  # enable horizontal and vertical flipping
@@ -45,35 +44,40 @@ def main():
     if opt.save_dict:
         opt.state_dict_path = '_result/model/v' + opt.version + time.strftime("-%b_%d_%H_%M", time.localtime()) + '.pkl'
     opt.log = '_result/v' + opt.version + time.strftime("-%b_%d_%H_%M", time.localtime()) + '.txt'
-    noter = Noter(opt.log)
 
-    # Model settings
     if opt.dataset == 'diginetica':
-        opt.n_node = 43098
+        opt.num_item = 43098
     elif opt.dataset == 'yoochoose1_64' or opt.dataset == 'yoochoose1_4':
-        opt.n_node = 37484
+        opt.num_item = 37484
+    elif opt.dataset == 'sample':
+        opt.num_item = 310
     else:
-        opt.n_node = 310
+        raise RuntimeError('Dataset ', str(opt.data), ' not found.')
 
     """ Start modeling """
+    noter = Noter(opt.log)
     noter.set_args(opt)
 
     # Import data
     data_getter = getter_dataloader(opt)
-    (opt.num_label, opt.h, opt.w) = get_data_detail(opt.data)
-
-    # Load model
-    model = SR_GNN(opt).to(opt.device)
 
     # Load data
     print('\n[Info] Loading data...')
     trainloader, valloader, testloader = data_getter.get()
+    for batch in trainloader:
+        break
 
-    # Define logging variants
+    # Load model
+    model = SR_GNN(opt).to(opt.device)
+    optimizer = torch.optim.AdamW(filter(lambda x: x.requires_grad, model.parameters()), lr=opt.lr, weight_decay=opt.l2)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=opt.lr_dc_step, gamma=opt.lr_dc)
+
+    # Loggers
     es_patience = 0
     loss_best = 1e9
-    miou_best = 0
-    pa_best = 0
+    hr_best = 0
+    mrr_best = 0
+    ndcg_best = 0
     model_best = None
 
     for epoch in range(1, opt.epoch + 1):
@@ -81,34 +85,35 @@ def main():
 
         # Training
         start = time.time()
-        loss_train, loss_aux_train, miou_train, pa_train = train_epoch(model, trainloader, opt)
-        model.scheduler.step()
-        noter.log_train(loss=loss_train, loss_aux=loss_aux_train, miou=miou_train, pa=pa_train,
+        loss_train, hr_train, ndcg_train, mrr_train = train_epoch(model, trainloader, optimizer, opt)
+        scheduler.step()
+        noter.log_train(loss=loss_train, hr=hr_train, mrr=mrr_train, ndcg=ndcg_train,
                         elapse=(time.time() - start)/60)
 
         # Validating
         with torch.no_grad():
-            loss_val, miou_val, pa_val = test_epoch(model, valloader, opt)
-        noter.log_val(epoch=epoch, loss=loss_val, miou=miou_val, pa=pa_val)
+            loss_val, hr_val, mrr_val, ndcg_val = test_epoch(model, valloader, opt)
+        noter.log_val(epoch=epoch, loss=loss_val, hr=hr_val, mrr=mrr_val, ndcg=ndcg_val)
 
         # Early stopping
-        if miou_val > miou_best or (miou_val == miou_best) & (loss_val <= loss_best):
-            loss_best = loss_val
-            miou_best = miou_val
-            pa_best = pa_val
-            model_best = model.state_dict().copy()
-
-            es_patience = 0
+        if mrr_val > mrr_best or (mrr_val == mrr_best) & (ndcg_val <= ndcg_best):
             print("\n- New best performance logged.")
+            es_patience = 0
+
+            loss_best = loss_val
+            hr_best = hr_val
+            mrr_best = mrr_val
+            ndcg_best = ndcg_val
+            model_best = model.state_dict().copy()
         else:
-            es_patience += 1
             print("\n- Early stopping patience counter {} of {}".format(es_patience, opt.es_patience))
+            es_patience += 1
             if es_patience == opt.es_patience:
                 print("\n[Info] Stop training")
                 break
 
     # Save stats and load best model
-    noter.set_result(mode='train', loss=loss_best, miou=miou_best, pa=pa_best)
+    noter.set_result(mode='train', loss=loss_best, hr=hr_best, mrr=mrr_best, ndcg=ndcg_best)
     model.load_state_dict(model_best)
     if opt.save_dict:
         with open(opt.state_dict_path, 'wb') as f:
@@ -116,8 +121,8 @@ def main():
 
     """ Testing """
     with torch.no_grad():
-        loss_test, miou_test, pa_test = test_epoch(model, testloader, opt)
-    noter.set_result(mode='test', loss=loss_test, miou=miou_test, pa=pa_test)
+        loss_test, hr_test, mrr_test, ndcg_test = test_epoch(model, testloader, opt)
+    noter.set_result(mode='test', loss=loss_test, hr=hr_test, mrr=mrr_test, ndcg=ndcg_test)
 
 
 if __name__ == '__main__':

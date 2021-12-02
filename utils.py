@@ -32,13 +32,13 @@ class Noter:
     def __init__(self, path_log, webhook=False):
         self.log = path_log
         self.loss_train = 1e8
-        self.loss_aux_train = 1e8
-        self.miou_train = 0
-        self.pa = 0
+        self.hr_train = 0
+        self.mrr_train = 0
+        self.ndcg_train = 0
         self.elapse = 1e8
 
         with open(self.log, 'a') as f:
-            f.write('\nEpoch, Time, loss_tr, loss_aux_tr, miou_tr, pa_tr, loss_val, miou_val, pa_val\n')
+            f.write('\nEpoch, Time, loss_tr, hr_tr, mrr_tr, ndcg_tr, loss_val, hr_val, mrr_val, ndcg_val\n')
 
         if webhook:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -58,62 +58,50 @@ class Noter:
         for k, v in vars(opt).items():
             print('         %s: %s' % (k, v))
 
-    def log_train(self, loss, loss_aux, miou, pa, elapse):
+    def log_train(self, loss, hr, mrr, ndcg, elapse):
         """ Print train stats in console. """
-
         self.loss_train = loss
-        self.loss_aux_train = loss_aux
-        self.miou_train = miou
-        self.pa = pa
+        self.hr_train = hr
+        self.mrr_train = mrr
+        self.ndcg_train = ndcg
         self.elapse = elapse
-        print('\n- (Training) Loss:{loss: 8.5f}, Loss_aux:{loss_aux: 8.5f}, mIoU:{miou: 8.4f}, pa:{pa: 8.4f}, '
+        print('\n- (Training) Loss:{loss: 8.5f}, hr:{hr: 8.4f}, mrr:{mrr: 8.4f}, ndcg:{ndcg: 8.4f}, '
               'elapse:{elapse:3.4f} min'
-              .format(loss=loss, loss_aux=loss_aux, miou=miou, pa=pa, elapse=elapse))
+              .format(loss=loss, hr=hr, mrr=mrr, ndcg=ndcg, elapse=elapse))
 
-    def log_val(self, epoch, loss, miou, pa, set_log=True):
+    def log_val(self, epoch, loss, hr, mrr, ndcg, set_log=True):
         """ Print validation stats in console. """
-
         if set_log:
             with open(self.log, 'a') as f:
-                f.write('{epoch}, {time: 8.4f}, {loss_train: 8.5f}, {loss_aux_train: 8.5f}, {miou_train: 8.4f}, '
-                        '{pa_train: 8.4f}, {loss_val: 8.5f}, {miou_val: 8.4f}, {pa_val: 8.4f}\n'
+                f.write('{epoch}, {time: 8.4f}, {loss_train: 8.5f}, {hr_train: 8.4f}, {mrr_train: 8.4f}, '
+                        '{ndcg_train: 8.4f}, {loss_val: 8.5f}, {hr_val: 8.4f}, {mrr_val: 8.4f}, {ndcg_val: 8.4f}\n'
                         .format(epoch=epoch, time=self.elapse, loss_train=self.loss_train,
-                                loss_aux_train=self.loss_aux_train, miou_train=self.miou_train, pa_train=self.pa,
-                                loss_val=loss, miou_val=miou, pa_val=pa))
+                                hr_train=self.hr_train, mrr_train=self.mrr_train, ndcg_train=self.ndcg_train,
+                                loss_val=loss, hr_val=hr, mrr_val=mrr, ndcg_val=ndcg))
 
-        print('\n- (Validating) Loss:{loss: 8.5f}, mIoU:{miou: 8.4f}, pa:{pa: 8.4f}'
-              .format(loss=loss, miou=miou, pa=pa))
+        print('\n- (Validating) Loss:{loss: 8.5f}, hr:{hr: 8.4f}, mrr:{mrr: 8.4f}, ndcg:{ndcg: 8.4f}'
+              .format(loss=loss, hr=hr, mrr=mrr, ndcg=ndcg))
 
-    def set_train_result(self, loss, miou, pa):
-        """ Set result of testloader and print in console. """
-
-        with open(self.log, 'a') as f:
-            f.write("\n[Info] Test set result -> loss: {loss: 8.5f}, miou: {miou: 8.4f} and pa: {pa: 8.4f}"
-                    .format(loss=loss, miou=miou, pa=pa))
-
-        print('\n- (Validating) Loss:{loss: 8.5f}, mIoU:{miou: 8.4f}, pa:{pa: 8.4f}'
-              .format(loss=loss, miou=miou, pa=pa))
-
-    def set_result(self, mode, loss, miou, pa):
-        """ Set result of training or testing and print in console. """
-
+    def set_result(self, mode, loss, hr, mrr, ndcg):
+        """ Set result of training or testing in log file and print in console. """
         if mode == 'train':
             with open(self.log, 'a') as f:
-                f.write("\n[Info] Training stopped with best loss: {loss: 8.5f}, best miou: {miou: 8.4f} "
-                        "and best pa: {pa: 8.4f}"
-                        .format(loss=loss, miou=miou, pa=pa))
+                f.write('\n[Info] Training stopped with best loss: {loss: 8.5f}, hr:{hr: 8.4f}, mrr:{mrr: 8.4f}, '
+                        'ndcg:{ndcg: 8.4f}'
+                        .format(loss=loss, hr=hr, mrr=mrr, ndcg=ndcg))
 
-            print("\n[Info] Training stopped with best loss: {loss: 8.5f}, best miou: {miou: 8.4f} "
-                  "and best pa: {pa: 8.4f}\n"
-                  .format(loss=loss, miou=miou, pa=pa))
+            print('\n[Info] Training stopped with best loss: {loss: 8.5f}, hr:{hr: 8.4f}, mrr:{mrr: 8.4f}, '
+                  'ndcg:{ndcg: 8.4f}'
+                  .format(loss=loss, hr=hr, mrr=mrr, ndcg=ndcg))
 
         if mode == 'test':
             with open(self.log, 'a') as f:
-                f.write("\n[Info] Test set result -> loss: {loss: 8.5f}, miou: {miou: 8.4f} and pa: {pa: 8.4f}"
-                        .format(loss=loss, miou=miou, pa=pa))
+                f.write('\n[Info] Test set result -> loss: {loss: 8.5f}, hr:{hr: 8.4f}, mrr:{mrr: 8.4f}, '
+                        'ndcg:{ndcg: 8.4f}'
+                        .format(loss=loss, hr=hr, mrr=mrr, ndcg=ndcg))
 
-            print('\n- (Validating) Loss:{loss: 8.5f}, mIoU:{miou: 8.4f}, pa:{pa: 8.4f}'
-                  .format(loss=loss, miou=miou, pa=pa))
+            print('\n[Info] Test set result -> Loss:{loss: 8.5f}, hr:{hr: 8.4f}, mrr:{mrr: 8.4f}, ndcg:{ndcg: 8.4f}'
+                  .format(loss=loss, hr=hr, mrr=mrr, ndcg=ndcg))
 
     def send_webhook(self, loss=0, miou=0, pa=0, name_project=None):
         if not name_project:

@@ -1,7 +1,8 @@
 import numpy as np
 import random
-
-from datasets.dataloader_assd import *
+import pickle
+import networkx as nx
+from datasets.dataloader_sample import *
 from sklearn.model_selection import train_test_split
 
 
@@ -13,16 +14,17 @@ class getter_dataloader(object):
     """
     def __init__(self, opt):
         self.opt = opt
-        dataset = self.opt.data
+        dataset = self.opt.dataset
 
-        if dataset == 'assd':
-            dir_img = '_data/assd/original_images/'
-            filename_list = []
-            for _, _, file_list in os.walk(dir_img):
-                for track_name in file_list:
-                    filename_list.append(dir_img + track_name[:-4])
-            self.filename_list = filename_list
-            self.get_dataset_dataloader = get_assd_dataloader
+        if dataset == 'sample':
+            self.get_dataset_dataloader = get_sample_dataloader
+            dir_sample = '_data/sample/'
+            self.train_data = pickle.load(open(dir_sample + 'train.txt', 'rb'))
+            self.test_data = pickle.load(open(dir_sample + 'test.txt', 'rb'))
+            if opt.validation:
+                self.train_data, self.valid_data = split_validation(self.train_data, opt.valid_portion)
+            else:
+                self.valid_data = None
         else:
             raise RuntimeError('Dataset ' + dataset + ' not found!')
 
@@ -30,15 +32,11 @@ class getter_dataloader(object):
         """
         Return dataloader for train, validation and test
         """
-        random.shuffle(self.filename_list)
-        x = len(self.filename_list)
-
-        train_index = self.filename_list[: int(x*0.8)]
-        val_index = self.filename_list[int(x*0.8): int(x*0.9)]
-        test_index = self.filename_list[int(x*0.9):]
-
-        train_loader, val_loader, testloader = self.get_dataset_dataloader(self.opt, train_index, val_index, test_index)
-        return train_loader, val_loader, testloader
+        train_loader, val_loader, test_loader = self.get_dataset_dataloader(self.opt,
+                                                                            self.train_data,
+                                                                            self.test_data,
+                                                                            self.valid_data)
+        return train_loader, val_loader, test_loader
 
 
 def get_data_detail(dataset: str):
@@ -46,3 +44,17 @@ def get_data_detail(dataset: str):
         return 24, 4000, 6000
     else:
         raise RuntimeError('Dataset ' + dataset + ' not found!')
+
+
+def split_validation(train_set, valid_portion):
+    train_set_x, train_set_y = train_set
+    n_samples = len(train_set_x)
+    sidx = np.arange(n_samples, dtype='int32')
+    np.random.shuffle(sidx)
+    n_train = int(np.round(n_samples * (1. - valid_portion)))
+    valid_set_x = [train_set_x[s] for s in sidx[n_train:]]
+    valid_set_y = [train_set_y[s] for s in sidx[n_train:]]
+    train_set_x = [train_set_x[s] for s in sidx[:n_train]]
+    train_set_y = [train_set_y[s] for s in sidx[:n_train]]
+
+    return (train_set_x, train_set_y), (valid_set_x, valid_set_y)

@@ -10,10 +10,8 @@ from tqdm import tqdm
 from model.metrics import *
 
 
-def train_epoch(model, data, opt):
-    """
-    Flow for each epoch
-    """
+def train_epoch(model, data, optimizer, opt):
+    """ Training """
     num_data = data.dataset.length
     loss_epoch = 0
     loss_aux_epoch = 0
@@ -24,7 +22,6 @@ def train_epoch(model, data, opt):
     for batch in tqdm(data, desc='- (Training)   ', leave=False):
         images, y_gt = map(lambda x: x.to(opt.device), batch)
 
-        """ training """
         y_score, y_score_aux = model(images)
 
         loss_batch = opt.seg_criterion(y_score, y_gt)
@@ -36,8 +33,8 @@ def train_epoch(model, data, opt):
             loss = loss_batch
 
         loss.backward()
-        model.optimizer.step()
-        model.optimizer.zero_grad()
+        optimizer.step()
+        optimizer.zero_grad()
 
         miou_batch, pa_batch = get_metrics(y_score, y_gt, opt.num_label)
 
@@ -50,9 +47,7 @@ def train_epoch(model, data, opt):
 
 
 def test_epoch(model, data, opt):
-    """
-    Give prediction on test set
-    """
+    """ Testing """
     num_data = data.dataset.length
     loss_epoch = 0
     miou_epoch = 0
@@ -62,7 +57,6 @@ def test_epoch(model, data, opt):
     for batch in tqdm(data, desc='- (Testing)   ', leave=False):
         images, y_gt = map(lambda x: x.to(opt.device), batch)
 
-        """ training """
         y_score = model.test(images)
         loss_batch = opt.seg_criterion(y_score, y_gt.squeeze(1).long())
 
