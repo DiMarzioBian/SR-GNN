@@ -69,8 +69,7 @@ class SampleData(Dataset):
             u_A = np.concatenate([u_A_in, u_A_out]).transpose()
             A.append(u_A)
             alias_inputs.append([np.where(node == i)[0][0] for i in u_input])
-        return torch.LongTensor(alias_inputs), torch.LongTensor(A), torch.LongTensor(items), torch.LongTensor(mask),\
-               torch.LongTensor(gt)
+        return map(lambda x: torch.LongTensor(x) for x in [alias_inputs, A, items, mask, gt])
 
     def get_data_mask(self, all_seq):
         """ Generate masked user sequences"""

@@ -103,19 +103,19 @@ class Noter:
             print('\n[Info] Test set result -> Loss:{loss: 8.5f}, hr:{hr: 8.4f}, mrr:{mrr: 8.4f}, ndcg:{ndcg: 8.4f}'
                   .format(loss=loss, hr=hr, mrr=mrr, ndcg=ndcg))
 
-    def send_webhook(self, loss=0, miou=0, pa=0, name_project=None):
-        if not name_project:
-            name_project = os.getcwd().split('\\')[-1]
+    def send_webhook(self, loss=0, hr=0, mrr=0, ndcg=0):
+        name_project = os.getcwd().split('\\')[-1]
 
-        hook = Webhook("x")
+        hook = Webhook('Insert discord webhook link')
         embed = Embed(
             description=name_project + ' finishes training.',
             color=0x00FF00,
             timestamp='now'
         )
         embed.set_author(name=self.ip)
-        embed.add_field(name='Loss', value=str(loss))
-        embed.add_field(name='mIoU', value=str(miou))
-        embed.add_field(name='Pixel acc', value=str(pa))
+        embed.add_field(name='loss', value=str(loss))
+        embed.add_field(name='hr', value=str(hr))
+        embed.add_field(name='mrr', value=str(mrr))
+        embed.add_field(name='ndcg', value=str(ndcg))
         hook.send(embed=embed)
 
