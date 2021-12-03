@@ -83,6 +83,7 @@ def collate_fn(insts):
         A_batch.append(u_A)
         alias_seq.append([np.where(item == i)[0][0] for i in seq])
 
+    items_batch = torch.LongTensor(np.array(items_batch))
     mask_batch = torch.LongTensor(np.array(mask_batch))
     gt_batch = torch.LongTensor(gt_batch)
 
