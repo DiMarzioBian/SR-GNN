@@ -44,32 +44,7 @@ class SampleData(Dataset):
         return self.length
 
     def __getitem__(self, index):
-        seq, mask, gt = self.all_seq[index], self.mask[index], self.gt[index]
-        items, num_item, A, alias_inputs = [], [], [], []
-        for item in seq:
-            num_item.append(len(np.unique(item)))
-        max_num_item = np.max(num_item)
-
-        for u_input in seq:
-            node = np.unique(u_input)
-            items.append(node.tolist() + (max_num_item - len(node)) * [self.index_mask])
-            u_A = np.zeros((max_num_item, max_num_item))
-            for i in np.arange(len(u_input) - 1):
-                if u_input[i + 1] == 0:
-                    break
-                u = np.where(node == u_input[i])[0][0]
-                v = np.where(node == u_input[i + 1])[0][0]
-                u_A[u][v] = 1
-            u_sum_in = np.sum(u_A, 0)
-            u_sum_in[np.where(u_sum_in == 0)] = 1
-            u_A_in = np.divide(u_A, u_sum_in)
-            u_sum_out = np.sum(u_A, 1)
-            u_sum_out[np.where(u_sum_out == 0)] = 1
-            u_A_out = np.divide(u_A.transpose(), u_sum_out)
-            u_A = np.concatenate([u_A_in, u_A_out]).transpose()
-            A.append(u_A)
-            alias_inputs.append([np.where(node == i)[0][0] for i in u_input])
-        return map(lambda x: torch.LongTensor(x) for x in [alias_inputs, A, items, mask, gt])
+        return self.all_seq[index], self.mask[index], self.gt[index]
 
     def get_data_mask(self, all_seq):
         """ Generate masked user sequences"""
@@ -80,6 +55,40 @@ class SampleData(Dataset):
         return np.asarray(all_seq_masked), np.asarray(mask_all_seq), len_max
 
 
+def collate_fn(insts):
+    """ Collate function, as required by PyTorch. """
+    seq_batch, mask_batch, gt_batch = list(zip(*insts))
+
+    max_num_item_seq = np.max([len(np.unique(seq)) for seq in seq_batch])
+
+    alias_seq, items_batch, A_batch = [], [], []
+    for seq in seq_batch:
+        item = np.unique(seq_batch)
+        items_batch.append(item.tolist() + (max_num_item_seq - len(item)) * [0])
+        u_A = np.zeros((max_num_item_seq, max_num_item_seq))
+        for i in np.arange(len(seq) - 1):
+            if seq[i + 1] == 0:
+                break
+            u = np.where(item == seq[i])[0][0]
+            v = np.where(item == seq[i + 1])[0][0]
+            u_A[u][v] = 1
+
+        u_sum_in = np.sum(u_A, 0)
+        u_sum_in[np.where(u_sum_in == 0)] = 1
+        u_A_in = np.divide(u_A, u_sum_in)
+        u_sum_out = np.sum(u_A, 1)
+        u_sum_out[np.where(u_sum_out == 0)] = 1
+        u_A_out = np.divide(u_A.transpose(), u_sum_out)
+        u_A = np.concatenate([u_A_in, u_A_out]).transpose()
+        A_batch.append(u_A)
+        alias_seq.append([np.where(item == i)[0][0] for i in seq])
+
+    mask_batch = torch.LongTensor(np.array(mask_batch))
+    gt_batch = torch.LongTensor(gt_batch)
+
+    return alias_seq, A_batch, items_batch, mask_batch, gt_batch
+
+
 def get_sample_dataloader(opt: Namespace,
                           train_data: tuple,
                           test_data: tuple,
@@ -88,14 +97,14 @@ def get_sample_dataloader(opt: Namespace,
 
     # Instancelize dataloader
     train_loader = DataLoader(SampleData(train_data), batch_size=opt.batch_size, num_workers=opt.num_workers,
-                              shuffle=True)
+                              collate_fn=collate_fn, shuffle=True)
     test_loader = DataLoader(SampleData(test_data), batch_size=opt.batch_size, num_workers=opt.num_workers,
-                             shuffle=False)
+                             collate_fn=collate_fn, shuffle=False)
 
     # Validation set
     if opt.validation:
         valid_loader = DataLoader(SampleData(valid_data), batch_size=opt.batch_size, num_workers=opt.num_workers,
-                                shuffle=False)
+                                  collate_fn=collate_fn, shuffle=False)
     else:
         valid_loader = None
 

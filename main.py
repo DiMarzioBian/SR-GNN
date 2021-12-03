@@ -22,21 +22,19 @@ def main():
     parser.add_argument('--save_dict', type=bool, default=True)
 
     parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--lr_patience', type=int, default=20)
+    parser.add_argument('--l2', type=float, default=1e-5)
+    parser.add_argument('--lr_step', type=int, default=20)
+    parser.add_argument('--lr_gamma', type=float, default=0.5)
     parser.add_argument('--es_patience', type=int, default=15)
-    parser.add_argument('--gamma_steplr', type=float, default=0.5)
     parser.add_argument('--epoch', type=int, default=100)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=8)
 
     # Settings need to be tuned
     parser.add_argument('--dataset', default='sample')
+    parser.add_argument('--step', type=int, default=2, help='Layer of GNN')
     parser.add_argument('--validation', default=False)
     parser.add_argument('--k_metric', type=int, default=20)
-
-    # Augmentation
-    parser.add_argument('--enable_hvflip', type=float, default=0.5)  # enable horizontal and vertical flipping
-    parser.add_argument('--enable_resize', type=float, default=0.5)  # apply white Gaussian noise
 
     # Add default args
     opt = parser.parse_args()
@@ -64,13 +62,11 @@ def main():
     # Load data
     print('\n[Info] Loading data...')
     trainloader, valloader, testloader = data_getter.get()
-    for batch in trainloader:
-        break
 
     # Load model
     model = SR_GNN(opt).to(opt.device)
     optimizer = torch.optim.AdamW(filter(lambda x: x.requires_grad, model.parameters()), lr=opt.lr, weight_decay=opt.l2)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=opt.lr_dc_step, gamma=opt.lr_dc)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=opt.lr_step, gamma=opt.lr_gamma)
 
     # Loggers
     es_patience = 0
