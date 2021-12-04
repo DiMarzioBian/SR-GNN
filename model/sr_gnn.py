@@ -32,7 +32,7 @@ class GNN(Module):
         gi = F.linear(inputs, self.w_ih, self.b_ih)
         gh = F.linear(hidden, self.w_hh, self.b_hh)
         i_r, i_i, i_n = gi.chunk(3, 2)
-        h_r, h_i, h_n = gh.chunk(3, 2)
+        h_r, h_i, h_n = gh.chunk(3, 1)
         resetgate = torch.sigmoid(i_r + h_r)
         inputgate = torch.sigmoid(i_i + h_i)
         newgate = torch.tanh(i_n + resetgate * h_n)

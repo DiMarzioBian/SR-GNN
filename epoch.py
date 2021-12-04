@@ -14,56 +14,68 @@ def train_epoch(model, data, optimizer, opt):
     """ Training """
     num_data = data.dataset.length
     loss_epoch = 0
-    loss_aux_epoch = 0
-    miou_epoch = 0
-    pa_epoch = 0
+    hr_epoch = 0
+    mrr_epoch = 0
+    ndcg_epoch = 0
 
     model.train()
     for batch in tqdm(data, desc='- (Training)   ', leave=False):
-        images, y_gt = map(lambda x: x.to(opt.device), batch)
+        # get data
+        alias_seq, A_batch, items_batch, mask_batch, gt_batch = map(lambda x: x.to(opt.device), batch)
+        items_batch = items_batch[0]
 
-        y_score, y_score_aux = model(images)
+        # training model
+        hidden = model(items_batch, A_batch)
+        get = lambda i: hidden[i][alias_seq[i]]
+        seq_hidden = torch.stack([get(i) for i in torch.arange(len(alias_seq)).long()])
+        scores = model.compute_scores(seq_hidden, mask_batch)
 
-        loss_batch = opt.seg_criterion(y_score, y_gt)
-        if opt.enable_aux:
-            loss_aux_batch = opt.seg_criterion(y_score_aux, y_gt.squeeze(1).long())
-            loss = loss_batch + opt.alpha_loss * loss_aux_batch
-        else:
-            loss_aux_batch = 0
-            loss = loss_batch
-
-        loss.backward()
+        loss_batch = opt.seg_criterion(scores, gt_batch - 1)
+        loss_batch.backward()
         optimizer.step()
         optimizer.zero_grad()
 
-        miou_batch, pa_batch = get_metrics(y_score, y_gt, opt.num_label)
+        # get metrics
+        hr_batch, mrr_batch, ndcg_batch = get_metrics(scores, gt_batch - 1, opt.num_item)
 
-        loss_epoch += loss_batch * images.shape[0]
-        loss_aux_epoch += loss_aux_batch * images.shape[0]
-        miou_epoch += miou_batch * images.shape[0]
-        pa_epoch += pa_batch * images.shape[0]
+        ratio_batch = alias_seq.shape[0] / num_data
+        loss_epoch += loss_batch * ratio_batch
+        hr_epoch += hr_batch * ratio_batch
+        mrr_epoch += mrr_batch * ratio_batch
+        ndcg_epoch += ndcg_batch * ratio_batch
 
-    return loss_epoch / num_data, loss_aux_epoch / num_data, miou_epoch / num_data, pa_epoch / num_data
+    return loss_epoch, hr_epoch, mrr_epoch, ndcg_epoch
 
 
 def test_epoch(model, data, opt):
     """ Testing """
     num_data = data.dataset.length
     loss_epoch = 0
-    miou_epoch = 0
-    pa_epoch = 0
+    hr_epoch = 0
+    mrr_epoch = 0
+    ndcg_epoch = 0
 
     model.eval()
     for batch in tqdm(data, desc='- (Testing)   ', leave=False):
-        images, y_gt = map(lambda x: x.to(opt.device), batch)
+        # get data
+        alias_seq, A_batch, items_batch, mask_batch, gt_batch = map(lambda x: x.to(opt.device), batch)
+        items_batch = items_batch[0]
 
-        y_score = model.test(images)
-        loss_batch = opt.seg_criterion(y_score, y_gt.squeeze(1).long())
+        # training model
+        hidden = model(items_batch, A_batch)
+        get = lambda i: hidden[i][alias_seq[i]]
+        seq_hidden = torch.stack([get(i) for i in torch.arange(len(alias_seq)).long()])
+        scores = model.compute_scores(seq_hidden, mask_batch)
 
-        miou_batch, pa_batch = get_metrics(y_score, y_gt, opt.num_label)
+        loss_batch = opt.seg_criterion(scores, gt_batch - 1)
 
-        loss_epoch += loss_batch * images.shape[0]
-        miou_epoch += miou_batch * images.shape[0]
-        pa_epoch += pa_batch * images.shape[0]
+        # get metrics
+        hr_batch, mrr_batch, ndcg_batch = get_metrics(scores, gt_batch - 1, opt.num_item)
 
-    return loss_epoch / num_data, miou_epoch / num_data, pa_epoch / num_data
+        ratio_batch = alias_seq.shape[0] / num_data
+        loss_epoch += loss_batch * ratio_batch
+        hr_epoch += hr_batch * ratio_batch
+        mrr_epoch += mrr_batch * ratio_batch
+        ndcg_epoch += ndcg_batch * ratio_batch
+
+    return loss_epoch, hr_epoch, mrr_epoch, ndcg_epoch

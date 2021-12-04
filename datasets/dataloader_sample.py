@@ -60,17 +60,16 @@ def collate_fn(insts):
     seq_batch, mask_batch, gt_batch = list(zip(*insts))
 
     max_num_item_seq = np.max([len(np.unique(seq)) for seq in seq_batch])
-
     alias_seq, items_batch, A_batch = [], [], []
     for seq in seq_batch:
-        item = np.unique(seq_batch)
-        items_batch.append(item.tolist() + (max_num_item_seq - len(item)) * [0])
+        item_seq = np.unique(seq)
+        items_batch.append(item_seq.tolist() + (max_num_item_seq - len(item_seq)) * [0])
         u_A = np.zeros((max_num_item_seq, max_num_item_seq))
         for i in np.arange(len(seq) - 1):
             if seq[i + 1] == 0:
                 break
-            u = np.where(item == seq[i])[0][0]
-            v = np.where(item == seq[i + 1])[0][0]
+            u = np.where(item_seq == seq[i])[0][0]
+            v = np.where(item_seq == seq[i + 1])[0][0]
             u_A[u][v] = 1
 
         u_sum_in = np.sum(u_A, 0)
@@ -81,13 +80,16 @@ def collate_fn(insts):
         u_A_out = np.divide(u_A.transpose(), u_sum_out)
         u_A = np.concatenate([u_A_in, u_A_out]).transpose()
         A_batch.append(u_A)
-        alias_seq.append([np.where(item == i)[0][0] for i in seq])
+        alias_seq.append([np.where(items_batch == i)[0][0] for i in seq])
 
+    alias_seq = torch.LongTensor(np.array(alias_seq))
+    A_batch = torch.FloatTensor(np.array(A_batch))
     items_batch = torch.LongTensor(np.array(items_batch))
     mask_batch = torch.LongTensor(np.array(mask_batch))
     gt_batch = torch.LongTensor(gt_batch)
 
     return alias_seq, A_batch, items_batch, mask_batch, gt_batch
+
 
 
 def get_sample_dataloader(opt: Namespace,
