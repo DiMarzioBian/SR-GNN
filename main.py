@@ -51,6 +51,7 @@ def main():
         opt.num_item = 310
     else:
         raise RuntimeError('Dataset ', str(opt.data), ' not found.')
+    assert opt.k_metric <= opt.num_item
 
     """ Start modeling """
     noter = Noter(opt.log)

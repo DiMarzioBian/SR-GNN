@@ -4,25 +4,26 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def get_metrics(y_score, y_gt, num_label):
+def get_metrics(scores_batch, gt_batch, k_metric):
     """ Get Hit rate, Mrr and NDCG """
-    y_pred = y_score.argmax(1)
-    pa = y_pred.eq(y_gt).sum() / y_gt.numel()
+    hr, mrr, ndcg = [], [], []
+    idcg = 1 / np.log2(1 + 1)
+    discount_dcg = np.log2(1+np.array(range(1, scores_batch.shape[1]+1)))
+    pred_batch = scores_batch.topk(k_metric)[1]
 
-    iou = torch.zeros(num_label).to(y_gt.device)
-    for i in range(num_label):
-        pred_i = (y_pred == i)
-        gt_i = (y_gt == i)
-        intersect = (pred_i & gt_i).sum()
-        union = pred_i.sum() + gt_i.sum() - intersect
-        if union < 0:
-            x=1
-        if union == 0:
-            union = 1e9
-        iou[i] = intersect / union
+    for i in range(pred_batch.shape[0]):
+        for pred, target in zip(pred_batch, gt_batch):
+            res = torch.isin(pred, target).int().cpu().detach().numpy()
 
-    return iou.mean(), pa
+            # Not hit
+            if np.sum(res) == 0:
+                hr.append(0)
+                mrr.append(0)
+                ndcg.append(0)
+            # hit
+            else:
+                hr.append(1)
+                mrr.append(1 / (1 + np.argmax(res)))
+                ndcg.append(1/(discount_dcg[np.argmax(res)] * idcg))
 
-
-
-
+    return np.mean(hr), np.mean(mrr), np.mean(ndcg)

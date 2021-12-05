@@ -90,39 +90,3 @@ class SR_GNN(Module):
         get = lambda i: hidden[i][alias_inputs[i]]
         seq_hidden = torch.stack([get(i) for i in torch.arange(len(alias_inputs)).long()])
         return targets, self.compute_scores(seq_hidden, mask)
-
-
-def train_test(model, train_data, test_data):
-    model.scheduler.step()
-    print('start training: ', datetime.datetime.now())
-    model.train()
-    total_loss = 0.0
-    slices = train_data.generate_batch(model.batch_size)
-    for i, j in zip(slices, np.arange(len(slices))):
-        model.optimizer.zero_grad()
-        targets, scores = model.predict(model, i, train_data)
-        loss = model.loss_function(scores, targets - 1)
-        loss.backward()
-        model.optimizer.step()
-        total_loss += loss
-        if j % int(len(slices) / 5 + 1) == 0:
-            print('[%d/%d] Loss: %.4f' % (j, len(slices), loss.item()))
-    print('\tLoss:\t%.3f' % total_loss)
-
-    print('start predicting: ', datetime.datetime.now())
-    model.eval()
-    hit, mrr = [], []
-    slices = test_data.generate_batch(model.batch_size)
-    for i in slices:
-        targets, scores = model.predict(model, i, test_data)
-        sub_scores = scores.topk(20)[1]
-        sub_scores = sub_scores.cpu().detach().numpy()
-        for score, target, mask in zip(sub_scores, targets, test_data.mask):
-            hit.append(np.isin(target - 1, score))
-            if len(np.where(score == target - 1)[0]) == 0:
-                mrr.append(0)
-            else:
-                mrr.append(1 / (np.where(score == target - 1)[0][0] + 1))
-    hit = np.mean(hit) * 100
-    mrr = np.mean(mrr) * 100
-    return hit, mrr
