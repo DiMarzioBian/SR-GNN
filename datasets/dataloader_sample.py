@@ -60,36 +60,38 @@ def collate_fn(insts):
     seq_batch, mask_batch, gt_batch = list(zip(*insts))
 
     max_num_item_seq = np.max([len(np.unique(seq)) for seq in seq_batch])
-    alias_seq, items_batch, A_batch = [], [], []
+    seq_alias_batch, items_batch, A_batch = [], [], []
     for seq in seq_batch:
-        item_seq = np.unique(seq)
-        items_batch.append(item_seq.tolist() + (max_num_item_seq - len(item_seq)) * [0])
-        u_A = np.zeros((max_num_item_seq, max_num_item_seq))
+        items_seq = np.unique(seq)
+        items_batch.append(items_seq.tolist() + (max_num_item_seq - len(items_seq)) * [0])
+        A_seq = np.zeros((max_num_item_seq, max_num_item_seq))  # Adjacency matrix for sequential
         for i in np.arange(len(seq) - 1):
+            # For edges, seq[i] is in, and seq[i+1] is out
             if seq[i + 1] == 0:
                 break
-            u = np.where(item_seq == seq[i])[0][0]
-            v = np.where(item_seq == seq[i + 1])[0][0]
-            u_A[u][v] = 1
+            in_index = np.where(items_seq == seq[i])[0][0]
+            out_index = np.where(items_seq == seq[i + 1])[0][0]
+            A_seq[in_index][out_index] = 1
 
-        u_sum_in = np.sum(u_A, 0)
-        u_sum_in[np.where(u_sum_in == 0)] = 1
-        u_A_in = np.divide(u_A, u_sum_in)
-        u_sum_out = np.sum(u_A, 1)
-        u_sum_out[np.where(u_sum_out == 0)] = 1
-        u_A_out = np.divide(u_A.transpose(), u_sum_out)
-        u_A = np.concatenate([u_A_in, u_A_out]).transpose()
-        A_batch.append(u_A)
-        alias_seq.append([np.where(items_batch == i)[0][0] for i in seq])
+        A_seq_in_sum = np.sum(A_seq, 0)
+        A_seq_in_sum[np.where(A_seq_in_sum == 0)] = 1  # Add 1 for all nodes with 0 indegree
+        A_seq_in = np.divide(A_seq, A_seq_in_sum)
 
-    alias_seq = torch.LongTensor(np.array(alias_seq))
+        A_seq_out_sum = np.sum(A_seq, 1)
+        A_seq_out_sum[np.where(A_seq_out_sum == 0)] = 1
+        A_seq_out = np.divide(A_seq.transpose(), A_seq_out_sum)
+
+        A_seq = np.concatenate([A_seq_in, A_seq_out]).transpose()
+        A_batch.append(A_seq)
+        seq_alias_batch.append([np.where(items_seq == i)[0][0] for i in seq])
+
+    seq_alias_batch = torch.LongTensor(np.array(seq_alias_batch))
     A_batch = torch.FloatTensor(np.array(A_batch))
     items_batch = torch.LongTensor(np.array(items_batch))
     mask_batch = torch.LongTensor(np.array(mask_batch))
     gt_batch = torch.LongTensor(gt_batch)
 
-    return alias_seq, A_batch, items_batch, mask_batch, gt_batch
-
+    return seq_alias_batch, A_batch, items_batch, mask_batch, gt_batch
 
 
 def get_sample_dataloader(opt: Namespace,

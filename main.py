@@ -6,8 +6,8 @@ import pickle
 import torch
 import torch.nn as nn
 from model.sr_gnn import SR_GNN
-from datasets import getter_dataloader, get_data_detail
-from epoch import train_epoch, test_epoch
+from datasets import getter_dataloader
+from epoch import run_epoch
 from utils import set_optimizer_lr, update_optimizer_lr, Noter
 
 
@@ -18,7 +18,7 @@ def main():
 
     # Model settings
     parser.add_argument('--hidden_size', type=int, default=100, help='hidden state size')
-    parser.add_argument('--non_hybrid', action='store_true', help='only use the global preference to predict')
+    parser.add_argument('--hybrid', action='store_false', default=True, help='if True, global + local; else global')
     parser.add_argument('--save_dict', type=bool, default=True)
 
     parser.add_argument('--lr', type=float, default=1e-4)
@@ -39,6 +39,8 @@ def main():
     # Add default args
     opt = parser.parse_args()
     opt.device = torch.device('cuda:0')
+    opt.criterion = nn.CrossEntropyLoss()
+
     if opt.save_dict:
         opt.state_dict_path = '_result/model/v' + opt.version + time.strftime("-%b_%d_%H_%M", time.localtime()) + '.pkl'
     opt.log = '_result/v' + opt.version + time.strftime("-%b_%d_%H_%M", time.localtime()) + '.txt'
@@ -82,14 +84,14 @@ def main():
 
         # Training
         start = time.time()
-        loss_train, hr_train, ndcg_train, mrr_train = train_epoch(model, trainloader, optimizer, opt)
+        loss_train, hr_train, ndcg_train, mrr_train = run_epoch(opt, model, trainloader, optimizer, mode='Train')
         scheduler.step()
         noter.log_train(loss=loss_train, hr=hr_train, mrr=mrr_train, ndcg=ndcg_train,
                         elapse=(time.time() - start)/60)
 
         # Validating
         with torch.no_grad():
-            loss_val, hr_val, mrr_val, ndcg_val = test_epoch(model, valloader, opt)
+            loss_val, hr_val, mrr_val, ndcg_val = run_epoch(opt, model, valloader, None, mode='Test')
         noter.log_val(epoch=epoch, loss=loss_val, hr=hr_val, mrr=mrr_val, ndcg=ndcg_val)
 
         # Early stopping
@@ -118,7 +120,7 @@ def main():
 
     """ Testing """
     with torch.no_grad():
-        loss_test, hr_test, mrr_test, ndcg_test = test_epoch(model, testloader, opt)
+        loss_test, hr_test, mrr_test, ndcg_test = run_epoch(opt, model, testloader, None, mode='Test')
     noter.set_result(mode='test', loss=loss_test, hr=hr_test, mrr=mrr_test, ndcg=ndcg_test)
 
 

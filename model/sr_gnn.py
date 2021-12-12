@@ -2,91 +2,91 @@ import datetime
 import math
 import numpy as np
 import torch
-from torch import nn
-from torch.nn import Module, Parameter
+import torch.nn as nn
 import torch.nn.functional as F
 
 
-class GNN(Module):
+class GNN(nn.Module):
     def __init__(self, hidden_size, step=1):
         super(GNN, self).__init__()
         self.step = step
         self.hidden_size = hidden_size
         self.input_size = hidden_size * 2
         self.gate_size = 3 * hidden_size
-        self.w_ih = Parameter(torch.Tensor(self.gate_size, self.input_size))
-        self.w_hh = Parameter(torch.Tensor(self.gate_size, self.hidden_size))
-        self.b_ih = Parameter(torch.Tensor(self.gate_size))
-        self.b_hh = Parameter(torch.Tensor(self.gate_size))
-        self.b_iah = Parameter(torch.Tensor(self.hidden_size))
-        self.b_oah = Parameter(torch.Tensor(self.hidden_size))
+        self.w_ih = nn.Parameter(torch.Tensor(self.gate_size, self.input_size))
+        self.w_hh = nn.Parameter(torch.Tensor(self.gate_size, self.hidden_size))
+        self.b_ih = nn.Parameter(torch.Tensor(self.gate_size))
+        self.b_hh = nn.Parameter(torch.Tensor(self.gate_size))
+        self.b_iah = nn.Parameter(torch.Tensor(self.hidden_size))
+        self.b_oah = nn.Parameter(torch.Tensor(self.hidden_size))
 
         self.linear_edge_in = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
         self.linear_edge_out = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
         self.linear_edge_f = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
 
-    def GNNCell(self, A, hidden):
+    def aggregate(self, hidden, A):
         input_in = torch.matmul(A[:, :, :A.shape[1]], self.linear_edge_in(hidden)) + self.b_iah
         input_out = torch.matmul(A[:, :, A.shape[1]: 2 * A.shape[1]], self.linear_edge_out(hidden)) + self.b_oah
         inputs = torch.cat([input_in, input_out], 2)
         gi = F.linear(inputs, self.w_ih, self.b_ih)
         gh = F.linear(hidden, self.w_hh, self.b_hh)
         i_r, i_i, i_n = gi.chunk(3, 2)
-        h_r, h_i, h_n = gh.chunk(3, 1)
-        resetgate = torch.sigmoid(i_r + h_r)
-        inputgate = torch.sigmoid(i_i + h_i)
-        newgate = torch.tanh(i_n + resetgate * h_n)
-        hy = newgate + inputgate * (hidden - newgate)
-        return hy
+        h_r, h_i, h_n = gh.chunk(3, 2)
+        gate_input = torch.sigmoid(i_i + h_i)
+        gate_reset = torch.sigmoid(i_r + h_r)
+        gate_output = torch.tanh(i_n + gate_reset * h_n)
+        return gate_output + gate_input * (hidden - gate_output)
 
     def forward(self, A, hidden):
         for i in range(self.step):
-            hidden = self.GNNCell(A, hidden)
+            hidden = self.aggregate(A, hidden)
         return hidden
 
 
-class SR_GNN(Module):
+class SR_GNN(nn.Module):
     def __init__(self, opt):
         super(SR_GNN, self).__init__()
+        # hyper parameters
         self.device = opt.device
         self.hidden_size = opt.hidden_size
         self.num_item = opt.num_item
         self.batch_size = opt.batch_size
-        self.non_hybrid = opt.non_hybrid
+        self.hybrid = opt.hybrid
+
+        # network
         self.embedding = nn.Embedding(self.num_item, self.hidden_size)
         self.gnn = GNN(self.hidden_size, step=opt.step)
-        self.linear_one = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
-        self.linear_two = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
-        self.linear_three = nn.Linear(self.hidden_size, 1, bias=False)
-        self.linear_transform = nn.Linear(self.hidden_size * 2, self.hidden_size, bias=True)
+        self.fc1 = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
+        self.fc2 = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
+        self.fc3 = nn.Linear(self.hidden_size, 1, bias=False)
+        if self.hybrid:
+            self.fc4 = nn.Linear(self.hidden_size * 2, self.hidden_size, bias=True)
         self.loss_function = nn.CrossEntropyLoss()
-        self.reset_parameters()
 
-    def reset_parameters(self):
+        # init parameters
         std_var = 1.0 / math.sqrt(self.hidden_size)
         for weight in self.parameters():
             weight.data.uniform_(-std_var, std_var)
 
+    def forward(self, x, A):
+        return self.gnn(self.embedding(x), A)
+
     def compute_scores(self, hidden, mask):
         ht = hidden[torch.arange(mask.shape[0]).long(), torch.sum(mask, 1) - 1]  # batch_size x latent_size
-        q1 = self.linear_one(ht).view(ht.shape[0], 1, ht.shape[1])  # batch_size x 1 x latent_size
-        q2 = self.linear_two(hidden)  # batch_size x seq_length x latent_size
-        alpha = self.linear_three(torch.sigmoid(q1 + q2))
-        a = torch.sum(alpha * hidden * mask.view(mask.shape[0], -1, 1).float(), 1)
-        if not self.non_hybrid:
-            a = self.linear_transform(torch.cat([a, ht], 1))
-        b = self.embedding.weight[1:]  # num_item x latent_size
-        scores = torch.matmul(a, b.transpose(1, 0))
-        return scores
+        q1 = self.fc1(ht).view(ht.shape[0], 1, ht.shape[1])  # batch_size x 1 x latent_size
+        q2 = self.fc2(hidden)  # batch_size x seq_length x latent_size
+        alpha = self.fc3(torch.sigmoid(q1 + q2))
+        pred_emb = torch.sum(alpha * hidden * mask.view(mask.shape[0], -1, 1).float(), 1)
+        if self.hybrid:
+            pred_emb = self.fc4(torch.cat([pred_emb, ht], 1))
+        item_emb = self.embedding.weight[1:].transpose(1, 0)  # num_item x latent_size
+        return torch.matmul(pred_emb, item_emb)
 
-    def forward(self, inputs, A):
-        hidden = self.embedding(inputs)
-        hidden = self.gnn(A, hidden)
-        return hidden
+    def predict(self, data):
+        seq_alias_batch, A_batch, items_batch, mask_batch = map(lambda x: x.to(self.device), data)
+        num_sample = len(seq_alias_batch)
 
-    def predict(self, i, data):
-        alias_inputs, A, items, mask, targets = map(lambda x: x.to(self.device), data.get_slice(i))
-        hidden = self.forward(items, A)
-        get = lambda i: hidden[i][alias_inputs[i]]
-        seq_hidden = torch.stack([get(i) for i in torch.arange(len(alias_inputs)).long()])
-        return targets, self.compute_scores(seq_hidden, mask)
+        hidden = self.forward(items_batch, A_batch)
+        get = lambda i: hidden[i][seq_alias_batch[i]]
+        seq_hidden = torch.stack([get(i) for i in torch.arange(num_sample).long()])
+        return self.compute_scores(seq_hidden, mask_batch)

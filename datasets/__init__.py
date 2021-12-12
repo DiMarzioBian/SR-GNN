@@ -39,13 +39,6 @@ class getter_dataloader(object):
         return train_loader, val_loader, test_loader
 
 
-def get_data_detail(dataset: str):
-    if dataset == 'assd':
-        return 24, 4000, 6000
-    else:
-        raise RuntimeError('Dataset ' + dataset + ' not found!')
-
-
 def split_validation(train_set, valid_portion):
     train_set_x, train_set_y = train_set
     n_samples = len(train_set_x)

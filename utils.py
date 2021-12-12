@@ -16,18 +16,6 @@ def update_optimizer_lr(optimizer):
         param_group['lr'] *= 0.5
 
 
-def init_weights(model):
-    """Initialize layer weights"""
-    for layer in model:
-        if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear):
-            nn.init.xavier_normal_(layer.weight)
-            if layer.bias is not None:
-                layer.bias.data.zero_()
-        elif isinstance(layer, nn.BatchNorm2d):
-            layer.weight.data.fill_(1)
-            layer.bias.data.zero_()
-
-
 class Noter:
     def __init__(self, path_log, webhook=False):
         self.log = path_log
