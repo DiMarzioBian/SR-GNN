@@ -85,13 +85,13 @@ def collate_fn(insts):
         A_batch.append(A_seq)
         seq_alias_batch.append([np.where(items_seq == i)[0][0] for i in seq])
 
-    seq_alias_batch = torch.LongTensor(np.array(seq_alias_batch))
     A_batch = torch.FloatTensor(np.array(A_batch))
     items_batch = torch.LongTensor(np.array(items_batch))
+    seq_alias_batch = torch.LongTensor(np.array(seq_alias_batch))
     mask_batch = torch.LongTensor(np.array(mask_batch))
     gt_batch = torch.LongTensor(gt_batch)
 
-    return seq_alias_batch, A_batch, items_batch, mask_batch, gt_batch
+    return A_batch, items_batch, seq_alias_batch, mask_batch, gt_batch
 
 
 def get_sample_dataloader(opt: Namespace,

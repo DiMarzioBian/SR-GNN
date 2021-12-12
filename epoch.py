@@ -17,7 +17,7 @@ def run_epoch(opt, model, data, optimizer, mode='Test'):
         scores_batch = model.predict(batch[:-1])
 
         # get loss
-        loss_batch = opt.criterion(scores_batch, gt_batch)
+        loss_batch = opt.criterion(scores_batch, gt_batch - 1)
         if mode == 'Train':
             loss_batch.backward()
             optimizer.step()

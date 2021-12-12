@@ -17,7 +17,7 @@ def main():
     parser.add_argument('--note', type=str, default='')
 
     # Model settings
-    parser.add_argument('--hidden_size', type=int, default=100, help='hidden state size')
+    parser.add_argument('--hidden_size', type=int, default=50, help='hidden state size')
     parser.add_argument('--hybrid', action='store_false', default=True, help='if True, global + local; else global')
     parser.add_argument('--save_dict', type=bool, default=True)
 
@@ -26,8 +26,8 @@ def main():
     parser.add_argument('--lr_step', type=int, default=20)
     parser.add_argument('--lr_gamma', type=float, default=0.5)
     parser.add_argument('--es_patience', type=int, default=15)
-    parser.add_argument('--epoch', type=int, default=100)
-    parser.add_argument('--num_workers', type=int, default=0)
+    parser.add_argument('--epoch', type=int, default=30)
+    parser.add_argument('--num_workers', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=8)
 
     # Settings need to be tuned
@@ -46,18 +46,17 @@ def main():
     opt.log = '_result/v' + opt.version + time.strftime("-%b_%d_%H_%M", time.localtime()) + '.txt'
 
     if opt.dataset == 'diginetica':
-        opt.num_item = 43098
+        opt.num_item = 43097
     elif opt.dataset == 'yoochoose1_64' or opt.dataset == 'yoochoose1_4':
-        opt.num_item = 37484
+        opt.num_item = 37483
     elif opt.dataset == 'sample':
-        opt.num_item = 310
+        opt.num_item = 309
     else:
         raise RuntimeError('Dataset ', str(opt.data), ' not found.')
     assert opt.k_metric <= opt.num_item
 
     """ Start modeling """
-    noter = Noter(opt.log)
-    noter.set_args(opt)
+    noter = Noter(opt)
 
     # Import data
     data_getter = getter_dataloader(opt)

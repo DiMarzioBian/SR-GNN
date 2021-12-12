@@ -17,34 +17,31 @@ def update_optimizer_lr(optimizer):
 
 
 class Noter:
-    def __init__(self, path_log, webhook=False):
-        self.log = path_log
+    def __init__(self, opt, webhook=False):
+        self.log = opt.log
         self.loss_train = 1e8
         self.hr_train = 0
         self.mrr_train = 0
         self.ndcg_train = 0
         self.elapse = 1e8
 
+        # set arguments into log file and data index
         with open(self.log, 'a') as f:
+            for k, v in vars(opt).items():
+                f.write('%s: %s\n' % (k, v))
             f.write('\nEpoch, Time, loss_tr, hr_tr, mrr_tr, ndcg_tr, loss_val, hr_val, mrr_val, ndcg_val\n')
 
+        # log arguments in console
+        print('\n[Info] Model settings:\n')
+        for k, v in vars(opt).items():
+            print('         %s: %s' % (k, v))
+
+        # get own ip
         if webhook:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
             self.ip = s.getsockname()[0]
             s.close()
-
-    @staticmethod
-    def set_args(opt):
-        """ Set arguments into log file and log in console. """
-
-        with open(opt.log, 'a') as f:
-            for k, v in vars(opt).items():
-                f.write('%s: %s\n' % (k, v))
-
-        print('\n[Info] Model settings:\n')
-        for k, v in vars(opt).items():
-            print('         %s: %s' % (k, v))
 
     def log_train(self, loss, hr, mrr, ndcg, elapse):
         """ Print train stats in console. """
