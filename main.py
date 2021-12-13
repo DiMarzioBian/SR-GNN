@@ -1,4 +1,3 @@
-import os
 import argparse
 import numpy as np
 import time
@@ -8,7 +7,7 @@ import torch.nn as nn
 from model.sr_gnn import SR_GNN
 from datasets import getter_dataloader
 from epoch import run_epoch
-from utils import set_optimizer_lr, update_optimizer_lr, Noter
+from utils import Noter
 
 
 def main():
@@ -17,23 +16,23 @@ def main():
     parser.add_argument('--note', type=str, default='')
 
     # Model settings
-    parser.add_argument('--hidden_size', type=int, default=50, help='hidden state size')
+    parser.add_argument('--hidden_size', type=int, default=100, help='hidden state size')
     parser.add_argument('--hybrid', action='store_false', default=True, help='if True, global + local; else global')
-    parser.add_argument('--save_dict', type=bool, default=True)
+    parser.add_argument('--save_dict', type=bool, default=False)
 
-    parser.add_argument('--lr', type=float, default=1e-4)
+    parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--l2', type=float, default=1e-5)
-    parser.add_argument('--lr_step', type=int, default=20)
-    parser.add_argument('--lr_gamma', type=float, default=0.5)
+    parser.add_argument('--lr_step', type=int, default=5)
+    parser.add_argument('--lr_gamma', type=float, default=0.1)
     parser.add_argument('--es_patience', type=int, default=15)
-    parser.add_argument('--epoch', type=int, default=30)
-    parser.add_argument('--num_workers', type=int, default=2)
-    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--epoch', type=int, default=50)
+    parser.add_argument('--num_workers', type=int, default=0)
+    parser.add_argument('--batch_size', type=int, default=100)
 
     # Settings need to be tuned
     parser.add_argument('--dataset', default='sample')
     parser.add_argument('--step', type=int, default=2, help='Layer of GNN')
-    parser.add_argument('--validation', default=False)
+    parser.add_argument('--val_split_rate', type=float, default=0.0)
     parser.add_argument('--k_metric', type=int, default=20)
 
     # Add default args
@@ -67,7 +66,7 @@ def main():
 
     # Load model
     model = SR_GNN(opt).to(opt.device)
-    optimizer = torch.optim.AdamW(filter(lambda x: x.requires_grad, model.parameters()), lr=opt.lr, weight_decay=opt.l2)
+    optimizer = torch.optim.Adam(filter(lambda x: x.requires_grad, model.parameters()), lr=opt.lr, weight_decay=opt.l2)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=opt.lr_step, gamma=opt.lr_gamma)
 
     # Loggers
@@ -83,14 +82,16 @@ def main():
 
         # Training
         start = time.time()
-        loss_train, hr_train, ndcg_train, mrr_train = run_epoch(opt, model, trainloader, optimizer, mode='Train')
+        res_train = run_epoch(opt, model, trainloader, mode_train=True, optimizer=optimizer)
+        loss_train, hr_train, ndcg_train, mrr_train = res_train
         scheduler.step()
         noter.log_train(loss=loss_train, hr=hr_train, mrr=mrr_train, ndcg=ndcg_train,
                         elapse=(time.time() - start)/60)
 
         # Validating
         with torch.no_grad():
-            loss_val, hr_val, mrr_val, ndcg_val = run_epoch(opt, model, valloader, None, mode='Test')
+            # did not split train and val
+            loss_val, hr_val, mrr_val, ndcg_val = run_epoch(opt, model, valloader, mode_train=False)
         noter.log_val(epoch=epoch, loss=loss_val, hr=hr_val, mrr=mrr_val, ndcg=ndcg_val)
 
         # Early stopping
@@ -119,7 +120,7 @@ def main():
 
     """ Testing """
     with torch.no_grad():
-        loss_test, hr_test, mrr_test, ndcg_test = run_epoch(opt, model, testloader, None, mode='Test')
+        loss_test, hr_test, mrr_test, ndcg_test = run_epoch(opt, model, testloader, mode_train=False)
     noter.set_result(mode='test', loss=loss_test, hr=hr_test, mrr=mrr_test, ndcg=ndcg_test)
 
 

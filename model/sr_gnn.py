@@ -1,6 +1,4 @@
-import datetime
 import math
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,6 +12,7 @@ class GGNN(nn.Module):
         self.hidden_size = hidden_size
         self.fc_ih = nn.Linear(2 * self.hidden_size, 3 * self.hidden_size, bias=True)
         self.fc_hh = nn.Linear(1 * self.hidden_size, 3 * self.hidden_size, bias=True)
+
         self.b_iah = nn.Parameter(torch.Tensor(self.hidden_size))
         self.b_oah = nn.Parameter(torch.Tensor(self.hidden_size))
 
@@ -28,6 +27,7 @@ class GGNN(nn.Module):
         inputs = torch.cat([input_in, input_out], 2)
         i_r, i_i, i_n = self.fc_ih(inputs).chunk(3, 2)
         h_r, h_i, h_n = self.fc_hh(h_item).chunk(3, 2)
+
         gate_input = torch.sigmoid(i_i + h_i)
         gate_reset = torch.sigmoid(i_r + h_r)
         gate_update = torch.tanh(i_n + gate_reset * h_n)
@@ -77,7 +77,6 @@ class SR_GNN(nn.Module):
         # learning item embeddings on session graphs
         h_seqs_batch = self.forward(A_batch, items_batch, seq_alias_batch)
         h_tail_batch = h_seqs_batch[torch.arange(mask_batch.shape[0]).long(), torch.sum(mask_batch, 1) - 1]
-
         # generating session embedding
         q1 = self.fc1(h_tail_batch).unsqueeze(1)  # batch_size x 1 x latent_size
         q2 = self.fc2(h_seqs_batch)  # batch_size x seq_length x latent_size

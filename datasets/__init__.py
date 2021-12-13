@@ -21,8 +21,8 @@ class getter_dataloader(object):
             dir_sample = '_data/sample/'
             self.train_data = pickle.load(open(dir_sample + 'train.txt', 'rb'))
             self.test_data = pickle.load(open(dir_sample + 'test.txt', 'rb'))
-            if opt.validation:
-                self.train_data, self.valid_data = split_validation(self.train_data, opt.valid_portion)
+            if opt.val_split_rate > 0:
+                self.train_data, self.valid_data = split_validation(self.train_data, opt.val_split_rate)
             else:
                 self.valid_data = None
         else:

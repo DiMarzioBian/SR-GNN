@@ -1,8 +1,14 @@
-from tqdm import tqdm
+
+
 from model.metrics import *
+from tqdm import tqdm
 
 
-def run_epoch(opt, model, data, optimizer, mode='Test'):
+def run_epoch(opt,
+              model,
+              data,
+              mode_train: bool = False,
+              optimizer=None):
 
     num_data = data.dataset.length
     loss_epoch = 0
@@ -10,7 +16,13 @@ def run_epoch(opt, model, data, optimizer, mode='Test'):
     mrr_epoch = 0
     ndcg_epoch = 0
 
-    model.train()
+    if mode_train:
+        model.train()
+        mode = 'Train'
+    else:
+        model.eval()
+        mode = 'Test'
+
     for batch in tqdm(data, desc='- ('+mode+'ing)   ', leave=False):
         # get data
         gt_batch = batch[-1].to(opt.device)

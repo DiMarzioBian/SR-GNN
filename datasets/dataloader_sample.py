@@ -1,11 +1,5 @@
-import os
 from argparse import Namespace
-from abc import ABC
-
-from PIL import Image
-import pandas as pd
 import numpy as np
-from tqdm import tqdm
 import networkx as nx
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -107,10 +101,10 @@ def get_sample_dataloader(opt: Namespace,
                              collate_fn=collate_fn, shuffle=False)
 
     # Validation set
-    if opt.validation:
+    if opt.val_split_rate > 0:
         valid_loader = DataLoader(SampleData(valid_data), batch_size=opt.batch_size, num_workers=opt.num_workers,
                                   collate_fn=collate_fn, shuffle=False)
     else:
-        valid_loader = None
+        valid_loader = test_loader
 
-    return train_loader, test_loader, valid_loader
+    return train_loader, valid_loader, test_loader
