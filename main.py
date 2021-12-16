@@ -29,9 +29,13 @@ def main():
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=100)
 
+    # Hawkes settings
+    parser.add_argument('--hawkes_graph', type=bool, default=False, help='Hawkes inference graph')
+    parser.add_argument('--hawkes_embedding', type=bool, default=False, help='Hawkes embedding kernel')
+
     # Settings need to be tuned
     parser.add_argument('--dataset', default='sample')
-    parser.add_argument('--step', type=int, default=2, help='Layer of GNN')
+    parser.add_argument('--step', type=int, default=1, help='Layer of GNN')
     parser.add_argument('--val_split_rate', type=float, default=0.0)
     parser.add_argument('--k_metric', type=int, default=20)
 
