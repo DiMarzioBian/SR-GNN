@@ -1,5 +1,3 @@
-import numpy as np
-import random
 import pickle
 import networkx as nx
 from datasets.dataloader_sample import *
@@ -16,11 +14,11 @@ class getter_dataloader(object):
         self.opt = opt
         dataset = self.opt.dataset
 
-        if dataset == 'sample':
+        if dataset == 'sample' or 1 == 1:
             self.get_dataset_dataloader = get_sample_dataloader
-            dir_sample = '_data/sample/'
-            self.train_data = pickle.load(open(dir_sample + 'train.txt', 'rb'))
-            self.test_data = pickle.load(open(dir_sample + 'test.txt', 'rb'))
+            dir_sample = '_data/' + dataset
+            self.train_data = pickle.load(open(dir_sample + '/train.txt', 'rb'))
+            self.test_data = pickle.load(open(dir_sample + '/test.txt', 'rb'))
             if opt.val_split_rate > 0:
                 self.train_data, self.valid_data = split_validation(self.train_data, opt.val_split_rate)
             else:

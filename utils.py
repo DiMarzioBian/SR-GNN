@@ -1,7 +1,7 @@
 import torch.nn as nn
 import os
-import socket
-from dhooks import Webhook, Embed
+# import socket
+# from dhooks import Webhook, Embed
 
 
 def set_optimizer_lr(optimizer, lr):
@@ -37,11 +37,11 @@ class Noter:
             print('         %s: %s' % (k, v))
 
         # get own ip
-        if webhook:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            self.ip = s.getsockname()[0]
-            s.close()
+        # if webhook:
+        #     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        #     s.connect(("8.8.8.8", 80))
+        #     self.ip = s.getsockname()[0]
+        #     s.close()
 
     def log_train(self, loss, hr, mrr, ndcg, elapse):
         """ Print train stats in console. """
@@ -67,7 +67,7 @@ class Noter:
         print('\n- (Validating) Loss:{loss: 8.5f}, hr:{hr: 8.4f}, mrr:{mrr: 8.4f}, ndcg:{ndcg: 8.4f}'
               .format(loss=loss, hr=hr, mrr=mrr, ndcg=ndcg))
 
-    def set_result(self, mode, loss, hr, mrr, ndcg):
+    def set_result(self, mode, loss, hr, mrr, ndcg, epoch_hr=None, epoch_mrr=None, epoch_ndcg=None):
         """ Set result of training or testing in log file and print in console. """
         if mode == 'train':
             with open(self.log, 'a') as f:
@@ -75,9 +75,19 @@ class Noter:
                         'ndcg:{ndcg: 8.4f}'
                         .format(loss=loss, hr=hr, mrr=mrr, ndcg=ndcg))
 
+                if epoch_hr or epoch_mrr or epoch_ndcg:
+                    f.write('\n[Info] Best hr at epoch: {epoch_hr: 3.0f}, mrr at epoch: {epoch_mrr: 3.0f}, '
+                            'ndcg at epoch: {epoch_ndcg: 3.0f}'
+                            .format(epoch_hr=epoch_hr, epoch_mrr=epoch_mrr, epoch_ndcg=epoch_ndcg))
+
             print('\n[Info] Training stopped with best loss: {loss: 8.5f}, hr:{hr: 8.4f}, mrr:{mrr: 8.4f}, '
                   'ndcg:{ndcg: 8.4f}'
                   .format(loss=loss, hr=hr, mrr=mrr, ndcg=ndcg))
+                
+            if epoch_hr or epoch_mrr or epoch_ndcg:
+                print('\n[Info] Best hr at epoch: {epoch_hr: 3.0f}, mrr at epoch: {epoch_mrr: 3.0f}, '
+                      'ndcg at epoch: {epoch_ndcg: 3.0f}'
+                      .format(epoch_hr=epoch_hr, epoch_mrr=epoch_mrr, epoch_ndcg=epoch_ndcg))
 
         if mode == 'test':
             with open(self.log, 'a') as f:
@@ -88,19 +98,19 @@ class Noter:
             print('\n[Info] Test set result -> Loss:{loss: 8.5f}, hr:{hr: 8.4f}, mrr:{mrr: 8.4f}, ndcg:{ndcg: 8.4f}'
                   .format(loss=loss, hr=hr, mrr=mrr, ndcg=ndcg))
 
-    def send_webhook(self, loss=0, hr=0, mrr=0, ndcg=0):
-        name_project = os.getcwd().split('\\')[-1]
-
-        hook = Webhook('Insert discord webhook link')
-        embed = Embed(
-            description=name_project + ' finishes training.',
-            color=0x00FF00,
-            timestamp='now'
-        )
-        embed.set_author(name=self.ip)
-        embed.add_field(name='loss', value=str(loss))
-        embed.add_field(name='hr', value=str(hr))
-        embed.add_field(name='mrr', value=str(mrr))
-        embed.add_field(name='ndcg', value=str(ndcg))
-        hook.send(embed=embed)
+    # def send_webhook(self, loss=0, hr=0, mrr=0, ndcg=0):
+    #     name_project = os.getcwd().split('\\')[-1]
+    #
+    #     hook = Webhook('Insert discord webhook link')
+    #     embed = Embed(
+    #         description=name_project + ' finishes training.',
+    #         color=0x00FF00,
+    #         timestamp='now'
+    #     )
+    #     embed.set_author(name=self.ip)
+    #     embed.add_field(name='loss', value=str(loss))
+    #     embed.add_field(name='hr', value=str(hr))
+    #     embed.add_field(name='mrr', value=str(mrr))
+    #     embed.add_field(name='ndcg', value=str(ndcg))
+    #     hook.send(embed=embed)
 

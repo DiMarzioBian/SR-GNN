@@ -24,7 +24,8 @@ def main():
     parser.add_argument('--l2', type=float, default=1e-5)
     parser.add_argument('--lr_step', type=int, default=5)
     parser.add_argument('--lr_gamma', type=float, default=0.1)
-    parser.add_argument('--es_patience', type=int, default=15)
+    parser.add_argument('--es_patience', type=int, default=5)
+    parser.add_argument('--es_eps', type=float, default=1e-5)
     parser.add_argument('--epoch', type=int, default=50)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=100)
@@ -43,6 +44,7 @@ def main():
     opt = parser.parse_args()
     opt.device = torch.device('cuda:0')
     opt.criterion = nn.CrossEntropyLoss()
+    opt.es_eps = torch.Tensor([opt.es_eps]).to(opt.device)
 
     if opt.save_dict:
         opt.state_dict_path = '_result/model/v' + opt.version + time.strftime("-%b_%d_%H_%M", time.localtime()) + '.pkl'
@@ -74,11 +76,9 @@ def main():
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=opt.lr_step, gamma=opt.lr_gamma)
 
     # Loggers
-    es_patience = 0
-    loss_best = 1e9
-    hr_best = 0
-    mrr_best = 0
-    ndcg_best = 0
+    es_patience, hr_best, mrr_best, ndcg_best = 0, 0, 0, 0
+    loss_best = torch.Tensor([1e3]).to(opt.device)
+    epoch_best_hr, epoch_best_mrr, epoch_best_ndcg = 0, 0, 0
     model_best = None
 
     for epoch in range(1, opt.epoch + 1):
@@ -86,8 +86,8 @@ def main():
 
         # Training
         start = time.time()
-        res_train = run_epoch(opt, model, trainloader, mode_train=True, optimizer=optimizer)
-        loss_train, hr_train, ndcg_train, mrr_train = res_train
+        loss_train, hr_train, ndcg_train, mrr_train = run_epoch(opt, model, trainloader, mode_train=True,
+                                                                optimizer=optimizer)
         scheduler.step()
         noter.log_train(loss=loss_train, hr=hr_train, mrr=mrr_train, ndcg=ndcg_train,
                         elapse=(time.time() - start)/60)
@@ -99,14 +99,23 @@ def main():
         noter.log_val(epoch=epoch, loss=loss_val, hr=hr_val, mrr=mrr_val, ndcg=ndcg_val)
 
         # Early stopping
-        if mrr_val > mrr_best or (mrr_val == mrr_best) & (ndcg_val <= ndcg_best):
-            print("\n- New best performance logged.")
-            es_patience = 0
-
-            loss_best = loss_val
+        es_update = False
+        if hr_val > hr_best:
             hr_best = hr_val
+            epoch_best_hr = epoch
+            es_update = True
+        if (mrr_val - mrr_best) > opt.es_eps:
             mrr_best = mrr_val
+            epoch_best_mrr = epoch
+            es_update = True
+        if (ndcg_val - ndcg_best) > opt.es_eps:
             ndcg_best = ndcg_val
+            epoch_best_ndcg = epoch
+            es_update = True
+
+        if es_update:
+            print("\n- Better performance logged.")
+            es_patience, loss_best, hr_best, mrr_best, ndcg_best = 0, loss_val, hr_val, mrr_val, ndcg_val
             model_best = model.state_dict().copy()
         else:
             print("\n- Early stopping patience counter {} of {}".format(es_patience, opt.es_patience))
@@ -116,7 +125,8 @@ def main():
                 break
 
     # Save stats and load best model
-    noter.set_result(mode='train', loss=loss_best, hr=hr_best, mrr=mrr_best, ndcg=ndcg_best)
+    noter.set_result(mode='train', loss=loss_best, hr=hr_best, mrr=mrr_best, ndcg=ndcg_best,
+                     epoch_hr=epoch_best_hr, epoch_mrr=epoch_best_mrr, epoch_ndcg=epoch_best_ndcg)
     model.load_state_dict(model_best)
     if opt.save_dict:
         with open(opt.state_dict_path, 'wb') as f:

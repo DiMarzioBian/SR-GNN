@@ -1,4 +1,5 @@
 import math
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,28 +11,26 @@ class GGNN(nn.Module):
         super(GGNN, self).__init__()
         self.step = step
         self.hidden_size = hidden_size
-        self.fc_ih = nn.Linear(2 * self.hidden_size, 3 * self.hidden_size, bias=True)
-        self.fc_hh = nn.Linear(1 * self.hidden_size, 3 * self.hidden_size, bias=True)
 
-        self.b_iah = nn.Parameter(torch.Tensor(self.hidden_size))
-        self.b_oah = nn.Parameter(torch.Tensor(self.hidden_size))
+        self.fc_edge_in = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
+        self.fc_edge_out = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
 
-        self.linear_edge_in = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
-        self.linear_edge_out = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
-        self.linear_edge_f = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
+        self.fc_rzh_input = nn.Linear(2 * self.hidden_size, 3 * self.hidden_size, bias=True)
+        self.fc_rz_old = nn.Linear(1 * self.hidden_size, 2 * self.hidden_size, bias=True)
+        self.fc_h_old = nn.Linear(1 * self.hidden_size, 1 * self.hidden_size, bias=True)
 
-    def aggregate(self, A, h_item):
-        # Eme
-        input_in = torch.matmul(A[:, :, :A.shape[1]], self.linear_edge_in(h_item)) + self.b_iah
-        input_out = torch.matmul(A[:, :, A.shape[1]: 2 * A.shape[1]], self.linear_edge_out(h_item)) + self.b_oah
-        inputs = torch.cat([input_in, input_out], 2)
-        i_r, i_i, i_n = self.fc_ih(inputs).chunk(3, 2)
-        h_r, h_i, h_n = self.fc_hh(h_item).chunk(3, 2)
+    def aggregate(self, A, emb_items):
+        h_input_in = self.fc_edge_in(torch.matmul(A[:, :, :A.shape[1]], emb_items))
+        h_input_out = self.fc_edge_in(torch.matmul(A[:, :, A.shape[1]: 2 * A.shape[1]], emb_items))
+        h_inputs = torch.cat([h_input_in, h_input_out], 2)
 
-        gate_input = torch.sigmoid(i_i + h_i)
-        gate_reset = torch.sigmoid(i_r + h_r)
-        gate_update = torch.tanh(i_n + gate_reset * h_n)
-        return gate_update + gate_input * (h_item - gate_update)
+        r_input, z_input, h_input = self.fc_rzh_input(h_inputs).chunk(chunks=3, dim=2)
+        r_old, z_old = self.fc_rz_old(emb_items).chunk(chunks=2, dim=2)
+
+        reset = torch.sigmoid(r_old + r_input)
+        update = torch.sigmoid(z_old + z_input)
+        h = torch.tanh(h_input + self.fc_h_old(reset * emb_items))
+        return (1 - update) * emb_items + update * h
 
     def forward(self, A, h_item):
         for i in range(self.step):

@@ -23,24 +23,22 @@ def run_epoch(opt,
 
     for batch in tqdm(data, desc='- ('+mode+'ing)   ', leave=False):
         # get data
-        gt_batch = batch[-1].to(opt.device)
+        gt_batch = batch[-1].to(opt.device) - 1  # Item index GT starts from 1
         scores_batch = model.predict(batch[:-1])
 
         # get loss
-        loss_batch = opt.criterion(scores_batch, gt_batch - 1)
+        loss_batch = opt.criterion(scores_batch, gt_batch)
         if mode == 'Train':
             loss_batch.backward()
             optimizer.step()
             optimizer.zero_grad()
 
         # get metrics
-        hr_batch, mrr_batch, ndcg_batch = get_metrics(scores_batch, gt_batch, opt.k_metric)
+        hits, mrr_sum, ndcg_sum = evaluate_result(scores_batch, gt_batch, opt.k_metric)
 
-        ratio_batch = gt_batch.shape[0] / num_data
-
-        loss_epoch += loss_batch * ratio_batch
-        hr_epoch += hr_batch * ratio_batch
-        mrr_epoch += mrr_batch * ratio_batch
-        ndcg_epoch += ndcg_batch * ratio_batch
+        loss_epoch += loss_batch * gt_batch.shape[0] / num_data
+        hr_epoch += hits / num_data
+        mrr_epoch += mrr_sum / num_data
+        ndcg_epoch += ndcg_sum / num_data
 
     return loss_epoch, hr_epoch, mrr_epoch, ndcg_epoch
