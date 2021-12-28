@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 import time
 import pickle
+import copy
 import torch
 import torch.nn as nn
 from model.sr_gnn import SR_GNN
@@ -116,7 +117,7 @@ def main():
         if es_update:
             print("\n- Better performance logged.")
             es_patience, loss_best, hr_best, mrr_best, ndcg_best = 0, loss_val, hr_val, mrr_val, ndcg_val
-            model_best = model.state_dict().copy()
+            model_best = copy.deepcopy(model.state_dict())
         else:
             print("\n- Early stopping patience counter {} of {}".format(es_patience, opt.es_patience))
             es_patience += 1
