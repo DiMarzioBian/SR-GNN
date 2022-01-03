@@ -57,6 +57,9 @@ def main():
         opt.num_item = 37483
     elif opt.dataset == 'sample':
         opt.num_item = 309
+    elif opt.dataset == 'tafeng':
+        # Randomly sample 4000 users
+        opt.num_item = 16272
     else:
         raise RuntimeError('Dataset ', str(opt.data), ' not found.')
     assert opt.k_metric <= opt.num_item
