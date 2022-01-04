@@ -21,7 +21,7 @@ class GGNN(nn.Module):
 
     def aggregate(self, A, emb_items):
         h_input_in = self.fc_edge_in(torch.matmul(A[:, :, :A.shape[1]], emb_items))
-        h_input_out = self.fc_edge_in(torch.matmul(A[:, :, A.shape[1]: 2 * A.shape[1]], emb_items))
+        h_input_out = self.fc_edge_out(torch.matmul(A[:, :, A.shape[1]: 2 * A.shape[1]], emb_items))
         h_inputs = torch.cat([h_input_in, h_input_out], 2)
 
         r_input, z_input, h_input = self.fc_rzh_input(h_inputs).chunk(chunks=3, dim=2)
