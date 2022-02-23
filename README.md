@@ -1,9 +1,6 @@
 # SR-GNN
 
-
-Original paper: https://arxiv.org/abs/1811.00855
-
-### This is a pytorch implementation of SR-GNN
+This is a pytorch implementation of AAAI'19 paper [Session-based Recommendation with Graph Neural Networks](https://arxiv.org/abs/1811.00855)
 
 Running on single GPU:
 ```bash
