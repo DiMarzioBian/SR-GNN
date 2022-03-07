@@ -1,7 +1,5 @@
 import pickle
-import networkx as nx
 from datasets.dataloader_sample import *
-from sklearn.model_selection import train_test_split
 
 
 class getter_dataloader(object):
@@ -40,12 +38,12 @@ class getter_dataloader(object):
 def split_validation(train_set, valid_portion):
     train_set_x, train_set_y = train_set
     n_samples = len(train_set_x)
-    sidx = np.arange(n_samples, dtype='int32')
-    np.random.shuffle(sidx)
+    indices = np.arange(n_samples, dtype='int32')
+    np.random.shuffle(indices)
     n_train = int(np.round(n_samples * (1. - valid_portion)))
-    valid_set_x = [train_set_x[s] for s in sidx[n_train:]]
-    valid_set_y = [train_set_y[s] for s in sidx[n_train:]]
-    train_set_x = [train_set_x[s] for s in sidx[:n_train]]
-    train_set_y = [train_set_y[s] for s in sidx[:n_train]]
+    valid_set_x = [train_set_x[s] for s in indices[n_train:]]
+    valid_set_y = [train_set_y[s] for s in indices[n_train:]]
+    train_set_x = [train_set_x[s] for s in indices[:n_train]]
+    train_set_y = [train_set_y[s] for s in indices[:n_train]]
 
     return (train_set_x, train_set_y), (valid_set_x, valid_set_y)

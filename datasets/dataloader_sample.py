@@ -1,6 +1,5 @@
 from argparse import Namespace
 import numpy as np
-import networkx as nx
 import torch
 from torch.utils.data import Dataset, DataLoader
 
