@@ -29,7 +29,7 @@ def main():
     parser.add_argument('--es_eps', type=float, default=1e-5)
     parser.add_argument('--epoch', type=int, default=50)
     parser.add_argument('--num_workers', type=int, default=0)
-    parser.add_argument('--batch_size', type=int, default=100)
+    parser.add_argument('--batch_size', type=int, default=20)
 
     # Hawkes settings
     parser.add_argument('--hawkes_graph', type=bool, default=False, help='Hawkes inference graph')
