@@ -12,7 +12,7 @@ from utils import Noter
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='SR-GNN')
     parser.add_argument('--version', type=str, default='1.0')
     parser.add_argument('--note', type=str, default='')
 
@@ -30,10 +30,6 @@ def main():
     parser.add_argument('--epoch', type=int, default=50)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=20)
-
-    # Hawkes settings
-    parser.add_argument('--hawkes_graph', type=bool, default=False, help='Hawkes inference graph')
-    parser.add_argument('--hawkes_embedding', type=bool, default=False, help='Hawkes embedding kernel')
 
     # Settings need to be tuned
     parser.add_argument('--dataset', default='sample')
