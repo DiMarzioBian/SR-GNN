@@ -27,7 +27,7 @@ def main():
     parser.add_argument('--lr_gamma', type=float, default=0.1)
     parser.add_argument('--es_patience', type=int, default=5)
     parser.add_argument('--es_eps', type=float, default=1e-5)
-    parser.add_argument('--epoch', type=int, default=50)
+    parser.add_argument('--epoch', type=int, default=2)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=20)
 
@@ -76,28 +76,27 @@ def main():
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=opt.lr_step, gamma=opt.lr_gamma)
 
     # Loggers
-    es_patience, hr_best, mrr_best, ndcg_best = 0, 0, 0, 0
-    loss_best = torch.Tensor([1e3]).to(opt.device)
+    es_counter, loss_best, hr_best, mrr_best, ndcg_best = 0, 0, 0, 0, 0
     epoch_best_hr, epoch_best_mrr, epoch_best_ndcg = 0, 0, 0
     model_best = None
 
+    # Start modeling
     for epoch in range(1, opt.epoch + 1):
         print('\n[ Epoch {epoch}]'.format(epoch=epoch))
 
-        # Training
+        # training
         start = time.time()
         loss_train, hr_train, ndcg_train, mrr_train = train(opt, model, trainloader, optimizer=optimizer)
         scheduler.step()
         noter.log_train(loss=loss_train, hr=hr_train, mrr=mrr_train, ndcg=ndcg_train,
                         elapse=(time.time() - start)/60)
 
-        # Validating
+        # validating
         with torch.no_grad():
-            # did not split train and val
             loss_val, hr_val, mrr_val, ndcg_val = evaluate(opt, model, valloader)
         noter.log_val(epoch=epoch, loss=loss_val, hr=hr_val, mrr=mrr_val, ndcg=ndcg_val)
 
-        # Early stopping
+        # early stopping conditions
         es_update = False
         if hr_val > hr_best:
             hr_best = hr_val
@@ -117,9 +116,9 @@ def main():
             es_patience, loss_best, hr_best, mrr_best, ndcg_best = 0, loss_val, hr_val, mrr_val, ndcg_val
             model_best = copy.deepcopy(model.state_dict())
         else:
-            print("\n- Early stopping patience counter {} of {}".format(es_patience, opt.es_patience))
-            es_patience += 1
-            if es_patience == opt.es_patience:
+            print("\n- Early stopping patience counter {} of {}".format(es_counter, opt.es_patience))
+            es_counter += 1
+            if es_counter == opt.es_patience:
                 print("\n[Info] Stop training")
                 break
 
@@ -131,7 +130,7 @@ def main():
         with open(opt.state_dict_path, 'wb') as f:
             pickle.dump(model_best, f)
 
-    """ Testing """
+    # testing
     with torch.no_grad():
         loss_test, hr_test, mrr_test, ndcg_test = evaluate(opt, model, testloader)
     noter.set_result(mode='test', loss=loss_test, hr=hr_test, mrr=mrr_test, ndcg=ndcg_test)
@@ -143,5 +142,4 @@ if __name__ == '__main__':
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     main()
-
 
